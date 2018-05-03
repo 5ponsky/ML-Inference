@@ -21,6 +21,7 @@ public class NeuralNet extends SupervisedLearner {
   public int[] indices; // Bootstrapping indices
 
   public Vec cd_gradient;
+  public Vec input_blame;
 
 
   String name() { return ""; }
@@ -88,9 +89,10 @@ public class NeuralNet extends SupervisedLearner {
       Vec w = new Vec(weights, pos, weightsChunk);
 
       blame = l.backProp(w, blame);
-
       System.out.println("blame " + i + ": " + blame);
     }
+    // Store the blame on the input layer
+    input_blame = new Vec(blame);
   }
 
   void updateGradient(Vec x) {
@@ -192,8 +194,8 @@ public class NeuralNet extends SupervisedLearner {
 
     double learning_rate_local = 0.1;
     for(int j = 0; j < 1; ++j) {
-      for(int i = 0; i < 2; ++i) { //10000000
-
+      for(int i = 0; i < 40; ++i) { //10000000
+        //System.out.println(weights);
         // fetch indexes
         // int t = random.nextInt(x.rows());
         // int p = random.nextInt(width);
@@ -203,8 +205,6 @@ public class NeuralNet extends SupervisedLearner {
         int p = (i * 31) % 64;
         int q = (i * 19) % 48;
 
-        System.out.println("t=" + t + " p=" + p + " q=" + q);
-
         // random row from X (anticipated observation)
         Vec row_t = x.row(t);
 
@@ -213,14 +213,15 @@ public class NeuralNet extends SupervisedLearner {
 
         // TODO: features := a fector containing p/width, q/height, and states[t]
         // give the feature vector its values
-        features.set(0, (double)(p / width));
-        features.set(1, (double)(q / height));
+        features.set(0, ((double)p / width));
+        features.set(1, ((double)q / height));
+        features.set(2, row_state.get(0));
+        features.set(3, row_state.get(1));
 
         int s = channels * (width * q + p);
 
         // TODO: label:= the vector from X[t][s] to X[t][s + (channels-1)]
         Vec label = new Vec(row_t, s, (channels));
-        System.out.println("label: " + label);
 
         // predict is 4 long
         // two inputs for pixel coordinates, two for state of crane
@@ -230,18 +231,42 @@ public class NeuralNet extends SupervisedLearner {
         // TODO: do backpropagation to compute the errors of the hidden units
         backProp(label);
 
-        // TODO: compute the blame terms for V[t]
-
         // TODO: use gradient descent to refine the weights and bias values
         updateGradient(features);
+        refineWeights(learning_rate_local);
+        gradient.fill(0.0);
 
         // TODO: use gradient descent to update V[t]
+
+        double v_t1 = row_state.get(0);
+        double v_t2 = row_state.get(1);
+        row_state.set(0, v_t1 + (learning_rate_local * input_blame.get(2)));
+        row_state.set(1, v_t2 + (learning_rate_local * input_blame.get(3)));
+
+        System.out.println("---------------------------------------");
+        System.out.println("i=" + i);
+        System.out.println("t=" + t + " p=" + p + " q=" + q);
+        System.out.println("feature: " + features);
+        System.out.println("label: " + label);
+        System.out.println("pred: " + pred);
+        System.out.println("input blame: " + input_blame);
+        System.out.println("updated: " + row_state);
 
       }
 
       learning_rate_local *= 0.75;
     }
   }
+
+  // int rbg_to_int(int r, int g, int b) {
+  //   return 0xff000000 | ((r & 0xff) << 16)) |
+  //     ((g & 0xff) << 8) | ((b & 0xff));
+  // }
+  //
+  // void make_image(Vec state, string filename) {
+  //   Vec in;
+  //
+  // }
 
   /// L1 regularization
   void l1_regularization() {
