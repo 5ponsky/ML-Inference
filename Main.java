@@ -638,10 +638,24 @@ class Main
 		System.out.println(nn.gradient);
 	}
 
+	public static void inference() {
+		/// Instantiate net
+		Random r = new Random(123456);
+		NeuralNet nn = new NeuralNet(r);
+
+		/// Build topology
+		nn.layers.add(new LayerLinear(4, 12));
+		nn.layers.add(new LayerTanh(12));
+		nn.layers.add(new LayerLinear(12, 12));
+		nn.layers.add(new LayerTanh(12));
+		nn.layers.add(new LayerLinear(12, 3));
+		nn.layers.add(new LayerTanh(3));
+
+		
+	}
+
 	public static void main(String[] args) {
 
-		/// NOTE: l1 regularization pushes non-critical weights to 0.
-		timeseries();
-		//tsDebugSimple();
+		inference();
 	}
 }
