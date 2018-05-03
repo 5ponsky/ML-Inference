@@ -88,6 +88,8 @@ public class NeuralNet extends SupervisedLearner {
       Vec w = new Vec(weights, pos, weightsChunk);
 
       blame = l.backProp(w, blame);
+
+      System.out.println("blame " + i + ": " + blame);
     }
   }
 
@@ -173,7 +175,8 @@ public class NeuralNet extends SupervisedLearner {
   /// This is an unsupervised learning method designed for images
   void train_with_images(Matrix x) {
     // width and height of the image are referred to as width, height
-    int width=0, height= 0; // Place holders
+    int width = 64;
+    int height= 48;
 
     int channels = x.cols() / (width * height);
 
@@ -183,30 +186,54 @@ public class NeuralNet extends SupervisedLearner {
     Matrix states = new Matrix(x.cols(), k);
     states.fill(0.0);
 
-    double learning_rate_local = 0.1;
-    for(int j = 0; j < 10; ++j) {
-      for(int i = 0; i < 10000000; ++i) {
-        int rand_row = random.nextInt(x.rows());
-        int p = random.nextInt(width);
-        int q = random.nextInt(height);
+    // Feature Vector has length 4
+    // two inputs for pixel coordinates, two for state of crane
+    Vec features = new Vec(4);
 
-        Vec features = new Vec(1);
+    double learning_rate_local = 0.1;
+    for(int j = 0; j < 1; ++j) {
+      for(int i = 0; i < 2; ++i) { //10000000
+
+        // fetch indexes
+        // int t = random.nextInt(x.rows());
+        // int p = random.nextInt(width);
+        // int q = random.nextInt(height);
+
+        int t = i % 1000;
+        int p = (i * 31) % 64;
+        int q = (i * 19) % 48;
+
+        System.out.println("t=" + t + " p=" + p + " q=" + q);
+
+        // random row from X (anticipated observation)
+        Vec row_t = x.row(t);
+
+        // random row from states/V (estimated state)
+        Vec row_state = states.row(t);
+
         // TODO: features := a fector containing p/width, q/height, and states[t]
+        // give the feature vector its values
+        features.set(0, (double)(p / width));
+        features.set(1, (double)(q / height));
 
         int s = channels * (width * q + p);
 
-        Vec label;
         // TODO: label:= the vector from X[t][s] to X[t][s + (channels-1)]
+        Vec label = new Vec(row_t, s, (channels));
+        System.out.println("label: " + label);
 
+        // predict is 4 long
+        // two inputs for pixel coordinates, two for state of crane
         Vec pred = new Vec(predict(features));
 
         // TODO: compute the error on the output units
-
         // TODO: do backpropagation to compute the errors of the hidden units
+        backProp(label);
 
         // TODO: compute the blame terms for V[t]
 
         // TODO: use gradient descent to refine the weights and bias values
+        updateGradient(features);
 
         // TODO: use gradient descent to update V[t]
 
