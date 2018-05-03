@@ -660,17 +660,17 @@ class Main
 	}
 
 	public static void infer_test() {
-		/// Instantiate net
+		/// Instantiate net (Observation function /decoder)
 		Random r = new Random(123456);
-		NeuralNet nn = new NeuralNet(r);
+		NeuralNet nn1 = new NeuralNet(r);
 
 		/// Build topology
-		nn.layers.add(new LayerLinear(4, 12));
-		nn.layers.add(new LayerTanh(12));
-		nn.layers.add(new LayerLinear(12, 12));
-		nn.layers.add(new LayerTanh(12));
-		nn.layers.add(new LayerLinear(12, 3));
-		nn.layers.add(new LayerTanh(3));
+		nn1.layers.add(new LayerLinear(4, 12));
+		nn1.layers.add(new LayerTanh(12));
+		nn1.layers.add(new LayerLinear(12, 12));
+		nn1.layers.add(new LayerTanh(12));
+		nn1.layers.add(new LayerLinear(12, 3));
+		nn1.layers.add(new LayerTanh(3));
 
 		/// Load data
 		Matrix x_observations = new Matrix();
@@ -709,12 +709,19 @@ class Main
 			0.007, 0.01, 0.013, 0.016, 0.019, 0.022, 0.025, 0.028, 0.031, 0.034, 0.037, 0.04,
 			0.014, 0.017, 0.02, 0.023, 0.026, 0.029, 0.032, 0.035, 0.038, 0.041, 0.044, 0.047,
 		};
-		nn.weights = new Vec(w);
-		nn.gradient = new Vec(nn.weights.size());
+		nn1.weights = new Vec(w);
+		nn1.gradient = new Vec(nn1.weights.size());
 
 
 		// also, t=0, p=0, q=0
-		nn.train_with_images(x_observations);
+		nn1.train_with_images(x_observations);
+
+		/// Instantiate transition function
+		NeuralNet nn2 = new NeuralNet(r);
+
+		/// Build topology
+		nn2.layers.add(new LayerLinear(4, 12));
+
 	}
 
 	public static void main(String[] args) {
