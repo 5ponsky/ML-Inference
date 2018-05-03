@@ -175,18 +175,12 @@ public class NeuralNet extends SupervisedLearner {
   }
 
   /// This is an unsupervised learning method designed for images
-  void train_with_images(Matrix x) {
+  void train_with_images(Matrix x, Matrix states) {
     // width and height of the image are referred to as width, height
     int width = 64;
     int height= 48;
 
     int channels = x.cols() / (width * height);
-
-    // TODO: initialize the MLP to have channels output units (not x.cols() outputs)
-
-    int k = 2; // # of degrees of freedom in the system
-    Matrix states = new Matrix(x.cols(), k);
-    states.fill(0.0);
 
     // Feature Vector has length 4
     // two inputs for pixel coordinates, two for state of crane

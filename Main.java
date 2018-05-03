@@ -677,6 +677,10 @@ class Main
 		x_observations.loadARFF("data/observations.arff");
 		x_observations.scale(1/255.0); // normalize data
 
+		int k = 2; // # of degrees of freedom in the system
+		Matrix states = new Matrix(x_observations.cols(), k);
+		states.fill(0.0);
+
 		double[] w = {
 			0,0.001,0.002,0.003,0.004,0.005,0.006,0.007,0.008,0.009,0.01,0.011, // layer 0 bias
 
@@ -714,13 +718,43 @@ class Main
 
 
 		// also, t=0, p=0, q=0
-		nn1.train_with_images(x_observations);
+		nn1.train_with_images(x_observations, states);
 
 		/// Instantiate transition function
 		NeuralNet nn2 = new NeuralNet(r);
 
 		/// Build topology
+
 		nn2.layers.add(new LayerLinear(4, 12));
+
+		/// Load data
+		Matrix actions = new Matrix();
+		actions.loadARFF("data/actions.arff");
+
+System.out.println(states.rows() + " " + states.cols());
+		System.out.println(x_observations.rows() + " " + x_observations.cols());
+		System.out.println(actions.rows() + " " + actions.cols());
+
+
+		/// Strip data
+		Matrix u_v = new Matrix(actions.rows() - 1, actions.cols() + states.cols());
+		//copy over observations
+		u_v.copyBlock(0, 0, states, 0, 0, states.rows() - 1, states.cols());
+		// copy over actions
+		u_v.copyBlock(0, 2, actions, 0, 0, actions.rows() - 1, actions.cols());
+
+		/// Pre process
+		NomCat nomcat = new NomCat();
+		nomcat.train(u_v);
+		Matrix u_v_processed = nomcat.outputTemplate();
+		for(int i = 0; i < u_v.rows(); ++i) {
+			double[] in = u_v.row(i).vals;
+			double[] out = new double[u_v_processed.cols()];
+			nomcat.transform(in, out);
+			u_v_processed.takeRow(out);
+		}
+
+	System.out.println("final: " + u_v_processed.rows() + " " + u_v_processed.cols());
 
 	}
 
