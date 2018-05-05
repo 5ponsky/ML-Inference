@@ -14,11 +14,16 @@ public class Vec {
 
 	public int size() { return len; }
 	public double[] vals() { return vals; }
-	public double get(int index) { return vals[start + index]; }
+
 	public void set(int index, double value) {
 		//if(start + index > len)
 		//	throw new IllegalArgumentException("index not in vector!");
 		vals[start + index] = value;
+	}
+
+	public double get(int index) {
+		//if(star)
+		return vals[start + index];
 	}
 
 	/// Makes an vector of the specified size

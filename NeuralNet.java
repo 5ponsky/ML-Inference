@@ -9,8 +9,8 @@ public class NeuralNet extends SupervisedLearner {
 
 
   private int reg_mode = 2; // temporary place holder for regularization
-  private double lambda_1 = 0.008;
-  private double lambda_2 = 0.006;
+  private double lambda_1 = 0.0001;
+  private double lambda_2 = 0.01;
 
   protected int trainingProgress;
 
@@ -89,7 +89,6 @@ public class NeuralNet extends SupervisedLearner {
       Vec w = new Vec(weights, pos, weightsChunk);
 
       blame = l.backProp(w, blame);
-      System.out.println("blame " + i + ": " + blame);
     }
     // Store the blame on the input layer
     input_blame = new Vec(blame);
@@ -175,7 +174,7 @@ public class NeuralNet extends SupervisedLearner {
   }
 
   /// This is an unsupervised learning method designed for images
-  void train_with_images(Matrix x, Matrix states) {
+  void train_with_images(Matrix x, Matrix v) {
     // width and height of the image are referred to as width, height
     int width = 64;
     int height= 48;
@@ -187,80 +186,68 @@ public class NeuralNet extends SupervisedLearner {
     Vec features = new Vec(4);
 
     double learning_rate_local = 0.1;
-    for(int j = 0; j < 1; ++j) {
-      for(int i = 0; i < 40; ++i) { //10000000
-        //System.out.println(weights);
-        // fetch indexes
-        // int t = random.nextInt(x.rows());
-        // int p = random.nextInt(width);
-        // int q = random.nextInt(height);
+    for(int j = 0; j < 10; ++j) {
+      for(int i = 0; i < 3000000; ++i) { //10000000
 
-        int t = i % 1000;
-        int p = (i * 31) % 64;
-        int q = (i * 19) % 48;
+        // fetch indexes
+        int t = random.nextInt(v.rows());
+        int p = random.nextInt(width);
+        int q = random.nextInt(height);
+
+        // int t = i % 1000;
+        // int p = (i * 31) % 64;
+        // int q = (i * 19) % 48;
 
         // random row from X (anticipated observation)
         Vec row_t = x.row(t);
 
-        // random row from states/V (estimated state)
-        Vec row_state = states.row(t);
+        // random row from  (estimated state)
+        // strip the state away from the state + action
+        Vec state_row = v.row(t);
 
-        // TODO: features := a fector containing p/width, q/height, and states[t]
         // give the feature vector its values
         features.set(0, ((double)p / width));
         features.set(1, ((double)q / height));
-        features.set(2, row_state.get(0));
-        features.set(3, row_state.get(1));
+        features.set(2, state_row.get(0));
+        features.set(3, state_row.get(1));
 
         int s = channels * (width * q + p);
 
-        // TODO: label:= the vector from X[t][s] to X[t][s + (channels-1)]
+        // label:= the vector from X[t][s] to X[t][s + (channels-1)]
         Vec label = new Vec(row_t, s, (channels));
 
         // predict is 4 long
         // two inputs for pixel coordinates, two for state of crane
-        Vec pred = new Vec(predict(features));
+        Vec pred = predict(features);
 
-        // TODO: compute the error on the output units
-        // TODO: do backpropagation to compute the errors of the hidden units
+        // Update nn
         backProp(label);
-
-        // TODO: use gradient descent to refine the weights and bias values
         updateGradient(features);
+        //l1_regularization();
         refineWeights(learning_rate_local);
         gradient.fill(0.0);
 
-        // TODO: use gradient descent to update V[t]
+        // use gradient descent to update V[t]
+        double v_t1 = state_row.get(0);
+        double v_t2 = state_row.get(1);
+        state_row.set(0, v_t1 + (learning_rate_local * input_blame.get(2)));
+        state_row.set(1, v_t2 + (learning_rate_local * input_blame.get(3)));
 
-        double v_t1 = row_state.get(0);
-        double v_t2 = row_state.get(1);
-        row_state.set(0, v_t1 + (learning_rate_local * input_blame.get(2)));
-        row_state.set(1, v_t2 + (learning_rate_local * input_blame.get(3)));
-
-        System.out.println("---------------------------------------");
-        System.out.println("i=" + i);
-        System.out.println("t=" + t + " p=" + p + " q=" + q);
-        System.out.println("feature: " + features);
-        System.out.println("label: " + label);
-        System.out.println("pred: " + pred);
-        System.out.println("input blame: " + input_blame);
-        System.out.println("updated: " + row_state);
+        // System.out.println("---------------------------------------");
+        // System.out.println("i=" + i);
+        // System.out.println("t=" + t + " p=" + p + " q=" + q);
+        // System.out.println("feature: " + features);
+        // System.out.println("label: " + label);
+        // System.out.println("pred: " + pred);
+        // System.out.println("input blame: " + input_blame);
+        // System.out.println("updated: " + state_row);
 
       }
 
       learning_rate_local *= 0.75;
     }
-  }
 
-  // int rbg_to_int(int r, int g, int b) {
-  //   return 0xff000000 | ((r & 0xff) << 16)) |
-  //     ((g & 0xff) << 8) | ((b & 0xff));
-  // }
-  //
-  // void make_image(Vec state, string filename) {
-  //   Vec in;
-  //
-  // }
+  }
 
   /// L1 regularization
   void l1_regularization() {
@@ -380,6 +367,11 @@ public class NeuralNet extends SupervisedLearner {
 
     System.out.println("If the test fails at any point, an exception would have been thrown");
     System.out.println("The printing of this message indicates that the test has passed");
+  }
+
+  /// Debug spew for observation function in unsupervised learning
+  void debug_observation_func() {
+
   }
 
 }

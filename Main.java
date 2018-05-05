@@ -661,105 +661,183 @@ class Main
 
 	public static void infer_test() {
 		/// Instantiate net (Observation function /decoder)
-		Random r = new Random(123456);
+		Random r = new Random(9999);
 		NeuralNet nn1 = new NeuralNet(r);
 
-		/// Build topology
+		/// Build topology for observation function
 		nn1.layers.add(new LayerLinear(4, 12));
 		nn1.layers.add(new LayerTanh(12));
 		nn1.layers.add(new LayerLinear(12, 12));
 		nn1.layers.add(new LayerTanh(12));
 		nn1.layers.add(new LayerLinear(12, 3));
 		nn1.layers.add(new LayerTanh(3));
-
-		/// Load data
-		Matrix x_observations = new Matrix();
-		x_observations.loadARFF("data/observations.arff");
-		x_observations.scale(1/255.0); // normalize data
-
-		int k = 2; // # of degrees of freedom in the system
-		Matrix states = new Matrix(x_observations.cols(), k);
-		states.fill(0.0);
-
-		double[] w = {
-			0,0.001,0.002,0.003,0.004,0.005,0.006,0.007,0.008,0.009,0.01,0.011, // layer 0 bias
-
-			// layer 1 weights
-			0, 0.003, 0.006, 0.009, 0.007, 0.01, 0.013, 0.016, 0.014, 0.017, 0.02, 0.023,
-			0.021, 0.024, 0.027, 0.03, 0.028, 0.031, 0.034, 0.037, 0.035, 0.038, 0.041, 0.044,
-			0.042, 0.045, 0.048, 0.051, 0.049, 0.052, 0.055, 0.058, 0.056, 0.059, 0.062, 0.065,
-			0.063, 0.066, 0.069, 0.072, 0.07, 0.073, 0.076, 0.079, 0.077, 0.08, 0.083, 0.086,
-
-			0,0.001,0.002,0.003,0.004,0.005,0.006,0.007,0.008,0.009,0.01,0.011, // layer 1 bias
-
-			// layer 1 weights
-			0, 0.003, 0.006, 0.009, 0.012, 0.015, 0.018, 0.021, 0.024, 0.027, 0.03, 0.033,
-			0.007, 0.01, 0.013, 0.016, 0.019, 0.022, 0.025, 0.028, 0.031, 0.034, 0.037, 0.04,
-			0.014, 0.017, 0.02, 0.023, 0.026, 0.029, 0.032, 0.035, 0.038, 0.041, 0.044, 0.047,
-			0.021, 0.024, 0.027, 0.03, 0.033, 0.036, 0.039, 0.042, 0.045, 0.048, 0.051, 0.054,
-			0.028, 0.031, 0.034, 0.037, 0.04, 0.043, 0.046, 0.049, 0.052, 0.055, 0.058, 0.061,
-			0.035, 0.038, 0.041, 0.044, 0.047, 0.05, 0.053, 0.056, 0.059, 0.062, 0.065, 0.068,
-			0.042, 0.045, 0.048, 0.051, 0.054, 0.057, 0.06, 0.063, 0.066, 0.069, 0.072, 0.075,
-			0.049, 0.052, 0.055, 0.058, 0.061, 0.064, 0.067, 0.07, 0.073, 0.076, 0.079, 0.082,
-			0.056, 0.059, 0.062, 0.065, 0.068, 0.071, 0.074, 0.077, 0.08, 0.083, 0.086, 0.089,
-			0.063, 0.066, 0.069, 0.072, 0.075, 0.078, 0.081, 0.084, 0.087, 0.09, 0.093, 0.096,
-			0.07, 0.073, 0.076, 0.079, 0.082, 0.085, 0.088, 0.091, 0.094, 0.097, 0.1, 0.103,
-			0.077, 0.08, 0.083, 0.086, 0.089, 0.092, 0.095, 0.098, 0.101, 0.104, 0.107, 0.11,
-
-			0,0.001,0.002, // layer 2 bias
-
-			// layer 2 weights
-			0, 0.003, 0.006, 0.009, 0.012, 0.015, 0.018, 0.021, 0.024, 0.027, 0.03, 0.033,
-			0.007, 0.01, 0.013, 0.016, 0.019, 0.022, 0.025, 0.028, 0.031, 0.034, 0.037, 0.04,
-			0.014, 0.017, 0.02, 0.023, 0.026, 0.029, 0.032, 0.035, 0.038, 0.041, 0.044, 0.047,
-		};
-		nn1.weights = new Vec(w);
-		nn1.gradient = new Vec(nn1.weights.size());
-
-
-		// also, t=0, p=0, q=0
-		nn1.train_with_images(x_observations, states);
+		nn1.initWeights();
+		// Make the weights a bit smaller
+		nn1.weights.scale(0.1);
+		// for(int i = 0; i < nn1.weights.size(); ++i) {
+		// 	nn1.weights.set(i, Math.abs(nn1.weights.get(i)));
+		// }
 
 		/// Instantiate transition function
 		NeuralNet nn2 = new NeuralNet(r);
 
-		/// Build topology
+		/// Build topology for transition function
+		nn2.layers.add(new LayerLinear(6, 6));
+		nn2.layers.add(new LayerTanh(6));
+		nn2.layers.add(new LayerLinear(6, 2));
+		nn2.initWeights();
 
-		nn2.layers.add(new LayerLinear(4, 12));
+		/// Load observations from file
+		Matrix x_observations = new Matrix();
+		x_observations.loadARFF("data/observations.arff");
+		x_observations.scale(1/255.0); // normalize data
 
-		/// Load data
+		/// Load actions from file
 		Matrix actions = new Matrix();
 		actions.loadARFF("data/actions.arff");
 
-System.out.println(states.rows() + " " + states.cols());
-		System.out.println(x_observations.rows() + " " + x_observations.cols());
-		System.out.println(actions.rows() + " " + actions.cols());
+		/// Empty matrix to hold predicted states
+		int k = 2; // # of degrees of freedom in the system
+		Matrix states = new Matrix(x_observations.rows(), k);
+		states.fill(0.0);
 
+		/// The transition function requires both states + actions
+		// States from (0) -> (n-1)
 
-		/// Strip data
-		Matrix u_v = new Matrix(actions.rows() - 1, actions.cols() + states.cols());
-		//copy over observations
-		u_v.copyBlock(0, 0, states, 0, 0, states.rows() - 1, states.cols());
-		// copy over actions
-		u_v.copyBlock(0, 2, actions, 0, 0, actions.rows() - 1, actions.cols());
+		Matrix v_t_1 = new Matrix(states.rows() - 1, states.cols() + actions.cols());
+		// copy over states (0) -> (n-1)
+		v_t_1.copyBlock(0, 0, states, 0, 0, states.rows() - 1, states.cols());
+		// copy over actions (0) -> (n-1)
+		v_t_1.copyBlock(0, 2, actions, 0, 0, actions.rows() - 1, actions.cols());
 
-		/// Pre process
+		/// Convert nominal action values to continuous values
 		NomCat nomcat = new NomCat();
-		nomcat.train(u_v);
-		Matrix u_v_processed = nomcat.outputTemplate();
-		for(int i = 0; i < u_v.rows(); ++i) {
-			double[] in = u_v.row(i).vals;
-			double[] out = new double[u_v_processed.cols()];
+		nomcat.train(v_t_1);
+		Matrix v_t_1_andActions = nomcat.outputTemplate();
+		for(int i = 0; i < v_t_1.rows(); ++i) {
+			double[] in = v_t_1.row(i).vals;
+			double[] out = new double[v_t_1_andActions.cols()];
 			nomcat.transform(in, out);
-			u_v_processed.takeRow(out);
+			v_t_1_andActions.takeRow(out);
 		}
 
-	System.out.println("final: " + u_v_processed.rows() + " " + u_v_processed.cols());
+		/// Labels are the predicted state, ie (1) -> (n)
+		Matrix v_t = new Matrix(states.rows() - 1, states.cols());
+		v_t.copyBlock(0, 0, states, 1, 0, states.rows()-1, states.cols());
+
+
+		// double[] w = {
+		// 	0,0.001,0.002,0.003,0.004,0.005,0.006,0.007,0.008,0.009,0.01,0.011, // layer 0 bias
+		//
+		// 	// layer 1 weights
+		// 	0, 0.003, 0.006, 0.009, 0.007, 0.01, 0.013, 0.016, 0.014, 0.017, 0.02, 0.023,
+		// 	0.021, 0.024, 0.027, 0.03, 0.028, 0.031, 0.034, 0.037, 0.035, 0.038, 0.041, 0.044,
+		// 	0.042, 0.045, 0.048, 0.051, 0.049, 0.052, 0.055, 0.058, 0.056, 0.059, 0.062, 0.065,
+		// 	0.063, 0.066, 0.069, 0.072, 0.07, 0.073, 0.076, 0.079, 0.077, 0.08, 0.083, 0.086,
+		//
+		// 	0,0.001,0.002,0.003,0.004,0.005,0.006,0.007,0.008,0.009,0.01,0.011, // layer 1 bias
+		//
+		// 	// layer 1 weights
+		// 	0, 0.003, 0.006, 0.009, 0.012, 0.015, 0.018, 0.021, 0.024, 0.027, 0.03, 0.033,
+		// 	0.007, 0.01, 0.013, 0.016, 0.019, 0.022, 0.025, 0.028, 0.031, 0.034, 0.037, 0.04,
+		// 	0.014, 0.017, 0.02, 0.023, 0.026, 0.029, 0.032, 0.035, 0.038, 0.041, 0.044, 0.047,
+		// 	0.021, 0.024, 0.027, 0.03, 0.033, 0.036, 0.039, 0.042, 0.045, 0.048, 0.051, 0.054,
+		// 	0.028, 0.031, 0.034, 0.037, 0.04, 0.043, 0.046, 0.049, 0.052, 0.055, 0.058, 0.061,
+		// 	0.035, 0.038, 0.041, 0.044, 0.047, 0.05, 0.053, 0.056, 0.059, 0.062, 0.065, 0.068,
+		// 	0.042, 0.045, 0.048, 0.051, 0.054, 0.057, 0.06, 0.063, 0.066, 0.069, 0.072, 0.075,
+		// 	0.049, 0.052, 0.055, 0.058, 0.061, 0.064, 0.067, 0.07, 0.073, 0.076, 0.079, 0.082,
+		// 	0.056, 0.059, 0.062, 0.065, 0.068, 0.071, 0.074, 0.077, 0.08, 0.083, 0.086, 0.089,
+		// 	0.063, 0.066, 0.069, 0.072, 0.075, 0.078, 0.081, 0.084, 0.087, 0.09, 0.093, 0.096,
+		// 	0.07, 0.073, 0.076, 0.079, 0.082, 0.085, 0.088, 0.091, 0.094, 0.097, 0.1, 0.103,
+		// 	0.077, 0.08, 0.083, 0.086, 0.089, 0.092, 0.095, 0.098, 0.101, 0.104, 0.107, 0.11,
+		//
+		// 	0,0.001,0.002, // layer 2 bias
+		//
+		// 	// layer 2 weights
+		// 	0, 0.003, 0.006, 0.009, 0.012, 0.015, 0.018, 0.021, 0.024, 0.027, 0.03, 0.033,
+		// 	0.007, 0.01, 0.013, 0.016, 0.019, 0.022, 0.025, 0.028, 0.031, 0.034, 0.037, 0.04,
+		// 	0.014, 0.017, 0.02, 0.023, 0.026, 0.029, 0.032, 0.035, 0.038, 0.041, 0.044, 0.047,
+		// };
+		// nn1.weights = new Vec(w);
+		// nn1.gradient = new Vec(nn1.weights.size());
+
+
+		/// passing (Data from file, states from (1) -> (n))
+		nn1.train_with_images(x_observations, states);
+
+		// /// Build index arrays to shuffle training and testing data
+		// int[] trainingIndices = new int[v_t_1_andActions.rows()];
+		// // populate the index arrays with indices
+		// for(int i = 0; i < trainingIndices.length; ++i) { trainingIndices[i] = i; }
+		//
+		// for(int i = 0; i < 10; ++i) {
+		// 	nn2.train(v_t_1_andActions, v_t, trainingIndices, 1, 0.0);
+		// }
+
+		Vec output = new Vec(x_observations.cols());
+		System.out.println(states);
+
+		int pos = 0;
+		ImageBuilder ib = new ImageBuilder(64, 48);
+		for(int i = 0; i < ib.height; ++i) {
+			for(int j = 0; j < ib.width; ++j) {
+				Vec in = new Vec(4);
+				in.set(0, (double)j/ib.width);
+				in.set(1, (double)i/ib.height);
+				in.set(2, states.row(0).get(0));
+				in.set(3, states.row(0).get(1));
+
+				Vec color = nn1.predict(in);
+				color.scale(255.0);
+
+				Vec vw = new Vec(output, pos, 3);
+				vw.add(color);
+
+				System.out.println(color);
+
+				ib.WritePixelBuffer(j, i, color);
+				pos += 3;
+			}
+		}
+
+		ib.outputToPNG("img/frame0.png");
+		System.out.println(output);
+
+
+		// for(int i = 0; i < v_t_1_andActions; ++i) {
+		// 	/// Train by sections so we can obtain the prediction
+		// 	nn2.predict(v_t_1_andActions.row(trainingIndices[i]));
+		// 	nn2.backProp(v_t.row(trainingIndices[i]));
+		// 	nn2.updateGradient(v_t_1_andActions.row(trainingIndices[i]));
+		// 	refineWeights(nn2.learning_rate);
+		// 	nn2.learning_rate -= 0.00001;
+		// 	nn2.gradient.fill(0.0);
+		//
+		// }
+
+	}
+
+	public static void testNN() {
 
 	}
 
 	public static void main(String[] args) {
 
+		// Random rand = new Random(123);
+		// ImageBuilder ib = new ImageBuilder(500, 500);
+		// for(int i = 0; i < ib.width; ++i) {
+		// 	for(int j = 0; j < ib.height; ++j) {
+		// 		int x = rand.nextInt(ib.width);
+		// 		int y = rand.nextInt(ib.height);
+		// 		int r = rand.nextInt(255);
+		// 		int g = rand.nextInt(255);
+		// 		int b = rand.nextInt(255);
+		//
+		// 		ib.WritePixelBuffer(x, y, r, g, b);
+		// 	}
+		// }
+		//
+		// ib.outputToPNG("img/out.png");
 		infer_test();
 	}
 }
