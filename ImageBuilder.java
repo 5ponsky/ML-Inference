@@ -43,6 +43,14 @@ class ImageBuilder {
     if(rgb.size() != 3)
       throw new IllegalArgumentException("Vec is not rbg format: " + rgb.size());
 
+    for(int i = 0; i < rgb.size(); ++i) {
+      if(rgb.get(i) < 0.0) {
+        rgb.set(i, 0.0);
+      } else if(rgb.get(i) > 255.0) {
+        rgb.set(i, 255.0);
+      }
+    }
+
     Color c = new Color((int)rgb.get(0), (int)rgb.get(1), (int)rgb.get(2));
     image.setRGB(x, y, c.getRGB());
   }

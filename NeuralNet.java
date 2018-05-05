@@ -43,6 +43,8 @@ public class NeuralNet extends SupervisedLearner {
     weights = new Vec(weightsSize);
     gradient = new Vec(weightsSize);
 
+    input_blame = new Vec(layers.get(0).inputs);
+
     int pos = 0;
     for(int i = 0; i < layers.size(); ++i) {
       Layer l = layers.get(i);
@@ -91,7 +93,8 @@ public class NeuralNet extends SupervisedLearner {
       blame = l.backProp(w, blame);
     }
     // Store the blame on the input layer
-    input_blame = new Vec(blame);
+    input_blame.fill(0.0);
+    input_blame.add(blame);
   }
 
   void updateGradient(Vec x) {
@@ -173,6 +176,87 @@ public class NeuralNet extends SupervisedLearner {
     }
   }
 
+  void train_im(Matrix x, Matrix v) {
+    // width and height of the image are referred to as width, height
+    int width = 64;
+    int height= 48;
+
+    int channels = x.cols() / (width * height);
+
+    // Feature Vector has length 4
+    // two inputs for pixel coordinates, two for state of crane
+    Vec features = new Vec(4);
+
+    int[] row_index = new int[x.rows()];
+    for(int i = 0; i < x.rows(); ++i) { row_index[i] = i; }
+
+    int[] q_index = new int[width];
+    for(int i = 0; i < width; ++i) { q_index[i] = i; }
+
+    int[] p_index = new int[height];
+    for(int i = 0; i < height; ++i) { p_index[i] = i; }
+
+
+    Vec pred, label;
+    double learning_rate_local = 0.1;
+    for(int i = 0; i < 100; ++i) {
+      for(int j = 0; j < x.rows(); ++j) {
+
+        // random row from X (anticipated observation)
+        Vec row_t = x.row(j);
+
+        // random row from  (estimated state)
+        // strip the state away from the state + action
+        Vec state_row = v.row(j);
+
+        for(int k = 0; k < width * height; ++k) {
+          int p = p_index[k/height - 1];
+          int q = q_index[k/width - 1];
+
+          // give the feature vector its values
+          features.set(0, ((double)p / width));
+          features.set(1, ((double)q / height));
+          features.set(2, state_row.get(0));
+          features.set(3, state_row.get(1));
+
+          int s = channels * (width * q + p);
+
+
+          // label:= the vector from X[t][s] to X[t][s + (channels-1)]
+          label = new Vec(row_t, s, (channels));
+
+          // predict is 4 long
+          // two inputs for pixel coordinates, two for state of crane
+          pred = predict(features);
+
+          // Update nn
+          backProp(label);
+          updateGradient(features);
+          //l1_regularization();
+          refineWeights(learning_rate_local);
+          gradient.fill(0.0);
+
+          // use gradient descent to update V[t]
+          double v_t1 = state_row.get(0);
+          double v_t2 = state_row.get(1);
+          state_row.set(0, v_t1 + (learning_rate_local * input_blame.get(2)));
+          state_row.set(1, v_t2 + (learning_rate_local * input_blame.get(3)));
+        }
+
+        scrambleIndices(random, q_index, null);
+        scrambleIndices(random, p_index, null);
+
+        System.out.println(j + "/" + x.rows());
+      }
+
+      scrambleIndices(random, row_index, null);
+      System.out.println("epoch: " + i + "/" + 10);
+      learning_rate_local *= 0.75;
+    }
+
+
+  }
+
   /// This is an unsupervised learning method designed for images
   void train_with_images(Matrix x, Matrix v) {
     // width and height of the image are referred to as width, height
@@ -185,12 +269,13 @@ public class NeuralNet extends SupervisedLearner {
     // two inputs for pixel coordinates, two for state of crane
     Vec features = new Vec(4);
 
+    Vec pred, label;
     double learning_rate_local = 0.1;
-    for(int j = 0; j < 10; ++j) {
-      for(int i = 0; i < 3000000; ++i) { //10000000
+    for(int j = 0; j < 10; ++j) { // 30000000
+      for(int i = 0; i < 4000000; ++i) { //10000000
 
         // fetch indexes
-        int t = random.nextInt(v.rows());
+        int t = random.nextInt(x.rows());
         int p = random.nextInt(width);
         int q = random.nextInt(height);
 
@@ -214,11 +299,11 @@ public class NeuralNet extends SupervisedLearner {
         int s = channels * (width * q + p);
 
         // label:= the vector from X[t][s] to X[t][s + (channels-1)]
-        Vec label = new Vec(row_t, s, (channels));
+        label = new Vec(row_t, s, (channels));
 
         // predict is 4 long
         // two inputs for pixel coordinates, two for state of crane
-        Vec pred = predict(features);
+        pred = predict(features);
 
         // Update nn
         backProp(label);
@@ -243,10 +328,38 @@ public class NeuralNet extends SupervisedLearner {
         // System.out.println("updated: " + state_row);
 
       }
-
-      learning_rate_local *= 0.75;
+      System.out.println(j + "/" + 10);
+      learning_rate_local *= 0.8;
     }
 
+  }
+
+  void make_image(String filename, Vec state) {
+    Vec in = new Vec(4);
+    ImageBuilder ib = new ImageBuilder(64, 48);
+
+    Vec output = new Vec(64*48*3);
+    int pos = 0;
+    for(int i = 0; i < ib.height; ++i) {
+      for(int j = 0; j < ib.width; ++j) {
+        in.set(0, (double)j/ib.width);
+        in.set(1, (double)i/ib.height);
+        in.set(2, state.get(0));
+        in.set(3, state.get(1));
+
+        Vec color = predict(in);
+        color.scale(255.0);
+
+        Vec vw = new Vec(output, pos, 3);
+				vw.add(color);
+
+        ib.WritePixelBuffer(j, i, color);
+        pos += 3;
+      }
+    }
+    //System.out.println(output);
+
+    ib.outputToPNG(filename);
   }
 
   /// L1 regularization

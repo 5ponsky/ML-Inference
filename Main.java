@@ -661,7 +661,7 @@ class Main
 
 	public static void infer_test() {
 		/// Instantiate net (Observation function /decoder)
-		Random r = new Random(9999);
+		Random r = new Random(12345);
 		NeuralNet nn1 = new NeuralNet(r);
 
 		/// Build topology for observation function
@@ -686,6 +686,7 @@ class Main
 		nn2.layers.add(new LayerTanh(6));
 		nn2.layers.add(new LayerLinear(6, 2));
 		nn2.initWeights();
+		nn2.weights.scale(0.1);
 
 		/// Load observations from file
 		Matrix x_observations = new Matrix();
@@ -701,107 +702,188 @@ class Main
 		Matrix states = new Matrix(x_observations.rows(), k);
 		states.fill(0.0);
 
+		/// passing (Data from file, states from (1) -> (n))
+		nn1.train_with_images(x_observations, states);
+
+		Matrix verify = new Matrix(999, k);
+		verify.copyBlock(0, 0, states, 0, 0, 999, k);
+
 		/// The transition function requires both states + actions
 		// States from (0) -> (n-1)
 
-		Matrix v_t_1 = new Matrix(states.rows() - 1, states.cols() + actions.cols());
+		Matrix v = new Matrix(actions.rows()-1, states.cols() + actions.cols());
 		// copy over states (0) -> (n-1)
-		v_t_1.copyBlock(0, 0, states, 0, 0, states.rows() - 1, states.cols());
+		v.copyBlock(0, 0, states, 0, 0, states.rows()-1, states.cols());
 		// copy over actions (0) -> (n-1)
-		v_t_1.copyBlock(0, 2, actions, 0, 0, actions.rows() - 1, actions.cols());
+		v.copyBlock(0, 2, actions, 0, 0, actions.rows()-1, actions.cols());
 
 		/// Convert nominal action values to continuous values
 		NomCat nomcat = new NomCat();
-		nomcat.train(v_t_1);
-		Matrix v_t_1_andActions = nomcat.outputTemplate();
-		for(int i = 0; i < v_t_1.rows(); ++i) {
-			double[] in = v_t_1.row(i).vals;
-			double[] out = new double[v_t_1_andActions.cols()];
+		nomcat.train(v);
+		Matrix v_andActions = nomcat.outputTemplate();
+		for(int i = 0; i < v.rows(); ++i) {
+			double[] in = v.row(i).vals;
+			double[] out = new double[v_andActions.cols()];
 			nomcat.transform(in, out);
-			v_t_1_andActions.takeRow(out);
+			v_andActions.takeRow(out);
 		}
 
 		/// Labels are the predicted state, ie (1) -> (n)
 		Matrix v_t = new Matrix(states.rows() - 1, states.cols());
 		v_t.copyBlock(0, 0, states, 1, 0, states.rows()-1, states.cols());
 
+		/// Build index arrays to shuffle training and testing data
+		int[] trainingIndices = new int[v_andActions.rows()];
+		// populate the index arrays with indices
+		for(int i = 0; i < trainingIndices.length; ++i) { trainingIndices[i] = i; }
 
-		// double[] w = {
-		// 	0,0.001,0.002,0.003,0.004,0.005,0.006,0.007,0.008,0.009,0.01,0.011, // layer 0 bias
-		//
-		// 	// layer 1 weights
-		// 	0, 0.003, 0.006, 0.009, 0.007, 0.01, 0.013, 0.016, 0.014, 0.017, 0.02, 0.023,
-		// 	0.021, 0.024, 0.027, 0.03, 0.028, 0.031, 0.034, 0.037, 0.035, 0.038, 0.041, 0.044,
-		// 	0.042, 0.045, 0.048, 0.051, 0.049, 0.052, 0.055, 0.058, 0.056, 0.059, 0.062, 0.065,
-		// 	0.063, 0.066, 0.069, 0.072, 0.07, 0.073, 0.076, 0.079, 0.077, 0.08, 0.083, 0.086,
-		//
-		// 	0,0.001,0.002,0.003,0.004,0.005,0.006,0.007,0.008,0.009,0.01,0.011, // layer 1 bias
-		//
-		// 	// layer 1 weights
-		// 	0, 0.003, 0.006, 0.009, 0.012, 0.015, 0.018, 0.021, 0.024, 0.027, 0.03, 0.033,
-		// 	0.007, 0.01, 0.013, 0.016, 0.019, 0.022, 0.025, 0.028, 0.031, 0.034, 0.037, 0.04,
-		// 	0.014, 0.017, 0.02, 0.023, 0.026, 0.029, 0.032, 0.035, 0.038, 0.041, 0.044, 0.047,
-		// 	0.021, 0.024, 0.027, 0.03, 0.033, 0.036, 0.039, 0.042, 0.045, 0.048, 0.051, 0.054,
-		// 	0.028, 0.031, 0.034, 0.037, 0.04, 0.043, 0.046, 0.049, 0.052, 0.055, 0.058, 0.061,
-		// 	0.035, 0.038, 0.041, 0.044, 0.047, 0.05, 0.053, 0.056, 0.059, 0.062, 0.065, 0.068,
-		// 	0.042, 0.045, 0.048, 0.051, 0.054, 0.057, 0.06, 0.063, 0.066, 0.069, 0.072, 0.075,
-		// 	0.049, 0.052, 0.055, 0.058, 0.061, 0.064, 0.067, 0.07, 0.073, 0.076, 0.079, 0.082,
-		// 	0.056, 0.059, 0.062, 0.065, 0.068, 0.071, 0.074, 0.077, 0.08, 0.083, 0.086, 0.089,
-		// 	0.063, 0.066, 0.069, 0.072, 0.075, 0.078, 0.081, 0.084, 0.087, 0.09, 0.093, 0.096,
-		// 	0.07, 0.073, 0.076, 0.079, 0.082, 0.085, 0.088, 0.091, 0.094, 0.097, 0.1, 0.103,
-		// 	0.077, 0.08, 0.083, 0.086, 0.089, 0.092, 0.095, 0.098, 0.101, 0.104, 0.107, 0.11,
-		//
-		// 	0,0.001,0.002, // layer 2 bias
-		//
-		// 	// layer 2 weights
-		// 	0, 0.003, 0.006, 0.009, 0.012, 0.015, 0.018, 0.021, 0.024, 0.027, 0.03, 0.033,
-		// 	0.007, 0.01, 0.013, 0.016, 0.019, 0.022, 0.025, 0.028, 0.031, 0.034, 0.037, 0.04,
-		// 	0.014, 0.017, 0.02, 0.023, 0.026, 0.029, 0.032, 0.035, 0.038, 0.041, 0.044, 0.047,
-		// };
-		// nn1.weights = new Vec(w);
-		// nn1.gradient = new Vec(nn1.weights.size());
-
-
-		/// passing (Data from file, states from (1) -> (n))
-		nn1.train_with_images(x_observations, states);
-
-		// /// Build index arrays to shuffle training and testing data
-		// int[] trainingIndices = new int[v_t_1_andActions.rows()];
-		// // populate the index arrays with indices
-		// for(int i = 0; i < trainingIndices.length; ++i) { trainingIndices[i] = i; }
-		//
-		// for(int i = 0; i < 10; ++i) {
-		// 	nn2.train(v_t_1_andActions, v_t, trainingIndices, 1, 0.0);
-		// }
-
-		Vec output = new Vec(x_observations.cols());
-		System.out.println(states);
-
-		int pos = 0;
-		ImageBuilder ib = new ImageBuilder(64, 48);
-		for(int i = 0; i < ib.height; ++i) {
-			for(int j = 0; j < ib.width; ++j) {
-				Vec in = new Vec(4);
-				in.set(0, (double)j/ib.width);
-				in.set(1, (double)i/ib.height);
-				in.set(2, states.row(0).get(0));
-				in.set(3, states.row(0).get(1));
-
-				Vec color = nn1.predict(in);
-				color.scale(255.0);
-
-				Vec vw = new Vec(output, pos, 3);
-				vw.add(color);
-
-				System.out.println(color);
-
-				ib.WritePixelBuffer(j, i, color);
-				pos += 3;
-			}
+		for(int i = 0; i < 10; ++i) {
+			nn2.train(v_andActions, v_t, trainingIndices, 1, 0.0);
 		}
 
-		ib.outputToPNG("img/frame0.png");
-		System.out.println(output);
+		System.out.println("------------------------");
+		System.out.println(verify);
+		System.out.println("------------------------");
+
+
+		// String filename1 = new String("img/framesdfsdf.png");
+		// Vec ooo = new Vec(2);
+		// System.out.println(states.row(0));
+		// ooo.set(0, states.row(0).get(0));
+		// ooo.set(1, states.row(0).get(1));
+		// nn1.make_image(filename1, ooo);
+
+		Vec out = new Vec(2);
+		out.set(0, v.row(0).get(0));
+		out.set(1, v.row(0).get(1));
+		String filename = new String("img/frame" + 0 + ".png");
+		nn1.make_image(filename, out);
+
+		/// First generate starting state
+		Vec state_in = new Vec(6);
+		state_in.set(0, v_t.row(0).get(0));
+		state_in.set(1, v_t.row(0).get(1));
+		state_in.set(2, 1.0);
+		state_in.set(3, 0.0);
+		state_in.set(4, 0.0);
+		state_in.set(5, 0.0);
+		out = nn2.predict(state_in);
+
+
+		for(int i = 1; i < 6; ++i) {
+			filename = new String("img/frame" + i + ".png");
+			nn1.make_image(filename, out);
+
+			/// FInd the difference between the current state and the next,
+			// add it to the current state to predict the next
+			Vec state_in_w = new Vec(state_in, 0, 2);
+			Vec difference = new Vec(out);
+			difference.addScaled(-1.0, state_in_w);
+			state_in_w.add(difference);
+
+			//state_in.set(0, out.get(0));
+			//state_in.set(1, out.get(1));
+			state_in.set(2, 1.0);
+
+
+			out = nn2.predict(state_in);
+			System.out.println("state_in: " + state_in);
+		}
+
+		state_in.set(2, 0.0);
+		state_in.set(4, 1.0);
+		out = nn2.predict(state_in);
+
+		for(int i = 6; i < 11; ++i) {
+			filename = new String("img/frame" + i + ".png");
+			nn1.make_image(filename, out);
+
+			/// FInd the difference between the current state and the next,
+			// add it to the current state to predict the next
+			Vec state_in_w = new Vec(state_in, 0, 2);
+			Vec difference = new Vec(out);
+			difference.addScaled(-1.0, state_in_w);
+			state_in_w.add(difference);
+
+			//state_in.set(0, out.get(0));
+			//state_in.set(1, out.get(1));
+			state_in.set(4, 1.0);
+
+
+			out = nn2.predict(state_in);
+			System.out.println("state_in: " + state_in);
+		}
+
+		// /// Produce a left vector
+		// Vec goleft = new Vec(6);
+		// goleft.set(2, 1.0);
+		// goleft.set(3, 0.0);
+		// goleft.set(4, 0.0);
+		// goleft.set(5, 0.0);
+		//
+		// Vec in = new Vec(4);
+		//
+		// /// Go left five times
+		// for(int i = 0; i < 5; ++i) {
+		// 	goleft.set(0, states.row(i+1).get(0));
+		// 	goleft.set(1, states.row(i+1).get(1));
+		// 	Vec out = nn2.predict(goleft);
+		//
+		//
+		// 	in.set(2, out.get(0));
+		// 	in.set(3, out.get(1));
+		// 	System.out.println(in);
+		//
+		// 	/// produce an image
+		// 	for(int j = 0; j < ib.height; ++j) {
+		// 		for(int l = 0; l < ib.width; ++l) {
+		// 			in.set(0, (double)l/ib.width);
+		// 			in.set(1, (double)j/ib.height);
+		//
+		// 			Vec color = nn1.predict(in);
+		// 			color.scale(255.0);
+		//
+		// 			ib.WritePixelBuffer(l, j, color);
+		// 		}
+		// 	}
+		//
+		// 	ib.outputToPNG("img/frame" + (i+1) + ".png");
+		// }
+		//
+		// /// Produce a left vector
+		// Vec goup = new Vec(6);
+		// goup.set(2, 0.0);
+		// goup.set(3, 0.0);
+		// goup.set(4, 1.0);
+		// goup.set(5, 0.0);
+		//
+		// /// Go up five times
+		// for(int i = 0; i < 5; ++i) {
+		// 	goup.set(0, states.row(i+6).get(0));
+		// 	goup.set(1, states.row(i+6).get(1));
+		// 	Vec out = nn2.predict(goup);
+		//
+		//
+		// 	in.set(2, out.get(0));
+		// 	in.set(3, out.get(1));
+		//
+		// 	/// produce an image
+		// 	for(int j = 0; j < ib.height; ++j) {
+		// 		for(int l = 0; l < ib.width; ++l) {
+		// 			in.set(0, (double)l/ib.width);
+		// 			in.set(1, (double)j/ib.height);
+		//
+		// 			Vec color = nn1.predict(in);
+		// 			color.scale(255.0);
+		//
+		// 			ib.WritePixelBuffer(l, j, color);
+		// 		}
+		// 	}
+		//
+		// 	ib.outputToPNG("img/frame" + (i+6) + ".png");
+		// }
+
+		// Pre
 
 
 		// for(int i = 0; i < v_t_1_andActions; ++i) {
@@ -818,26 +900,75 @@ class Main
 	}
 
 	public static void testNN() {
+		/// Instantiate net (Observation function /decoder)
+		Random r = new Random(123);
+		NeuralNet nn1 = new NeuralNet(r);
 
+		/// Build topology for observation function
+		nn1.layers.add(new LayerLinear(4, 12));
+		nn1.layers.add(new LayerTanh(12));
+		nn1.layers.add(new LayerLinear(12, 12));
+		nn1.layers.add(new LayerTanh(12));
+		nn1.layers.add(new LayerLinear(12, 3));
+		nn1.layers.add(new LayerTanh(3));
+
+		double[] w  = {
+			0,0.001,0.002,0.003,0.004,0.005,0.006,0.007,0.008,0.009,0.01,0.011,
+
+			0, 0.003, 0.006, 0.009,
+			0.007, 0.01, 0.013, 0.016,
+			0.014, 0.017, 0.02, 0.023,
+			0.021, 0.024, 0.027, 0.03,
+			0.028, 0.031, 0.034, 0.037,
+			0.035, 0.038, 0.041, 0.044,
+			0.042, 0.045, 0.048, 0.051,
+			0.049, 0.052, 0.055, 0.058,
+			0.056, 0.059, 0.062, 0.065,
+			0.063, 0.066, 0.069, 0.072,
+			0.07, 0.073, 0.076, 0.079,
+			0.077, 0.08, 0.083, 0.086,
+
+			0,0.001,0.002,0.003,0.004,0.005,0.006,0.007,0.008,0.009,0.01,0.011,
+
+			0, 0.003, 0.006, 0.009, 0.012, 0.015, 0.018, 0.021, 0.024, 0.027, 0.03, 0.033,
+			0.007, 0.01, 0.013, 0.016, 0.019, 0.022, 0.025, 0.028, 0.031, 0.034, 0.037, 0.04,
+			0.014, 0.017, 0.02, 0.023, 0.026, 0.029, 0.032, 0.035, 0.038, 0.041, 0.044, 0.047,
+			0.021, 0.024, 0.027, 0.03, 0.033, 0.036, 0.039, 0.042, 0.045, 0.048, 0.051, 0.054,
+			0.028, 0.031, 0.034, 0.037, 0.04, 0.043, 0.046, 0.049, 0.052, 0.055, 0.058, 0.061,
+			0.035, 0.038, 0.041, 0.044, 0.047, 0.05, 0.053, 0.056, 0.059, 0.062, 0.065, 0.068,
+			0.042, 0.045, 0.048, 0.051, 0.054, 0.057, 0.06, 0.063, 0.066, 0.069, 0.072, 0.075,
+			0.049, 0.052, 0.055, 0.058, 0.061, 0.064, 0.067, 0.07, 0.073, 0.076, 0.079, 0.082,
+			0.056, 0.059, 0.062, 0.065, 0.068, 0.071, 0.074, 0.077, 0.08, 0.083, 0.086, 0.089,
+			0.063, 0.066, 0.069, 0.072, 0.075, 0.078, 0.081, 0.084, 0.087, 0.09, 0.093, 0.096,
+			0.07, 0.073, 0.076, 0.079, 0.082, 0.085, 0.088, 0.091, 0.094, 0.097, 0.1, 0.103,
+			0.077, 0.08, 0.083, 0.086, 0.089, 0.092, 0.095, 0.098, 0.101, 0.104, 0.107, 0.11,
+
+			0,0.001,0.002,
+
+			0, 0.003, 0.006, 0.009, 0.012, 0.015, 0.018, 0.021, 0.024, 0.027, 0.03, 0.033,
+			0.007, 0.01, 0.013, 0.016, 0.019, 0.022, 0.025, 0.028, 0.031, 0.034, 0.037, 0.04,
+			0.014, 0.017, 0.02, 0.023, 0.026, 0.029, 0.032, 0.035, 0.038, 0.041, 0.044, 0.047
+		};
+		nn1.weights = new Vec(w);
+		nn1.gradient = new Vec(nn1.weights.size());
+
+		/// Load observations from file
+		Matrix x_observations = new Matrix();
+		x_observations.loadARFF("data/observations.arff");
+		x_observations.scale(1/255.0); // normalize data
+
+		/// Empty matrix to hold predicted states
+		int k = 2; // # of degrees of freedom in the system
+		Matrix states = new Matrix(x_observations.rows(), k);
+		states.fill(0.0);
+
+		/// passing (Data from file, states from (1) -> (n))
+		nn1.train_with_images(x_observations, states);
 	}
 
 	public static void main(String[] args) {
 
-		// Random rand = new Random(123);
-		// ImageBuilder ib = new ImageBuilder(500, 500);
-		// for(int i = 0; i < ib.width; ++i) {
-		// 	for(int j = 0; j < ib.height; ++j) {
-		// 		int x = rand.nextInt(ib.width);
-		// 		int y = rand.nextInt(ib.height);
-		// 		int r = rand.nextInt(255);
-		// 		int g = rand.nextInt(255);
-		// 		int b = rand.nextInt(255);
-		//
-		// 		ib.WritePixelBuffer(x, y, r, g, b);
-		// 	}
-		// }
-		//
-		// ib.outputToPNG("img/out.png");
+		//testNN();
 		infer_test();
 	}
 }
